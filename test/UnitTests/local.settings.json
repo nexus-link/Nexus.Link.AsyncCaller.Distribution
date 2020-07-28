@@ -1,0 +1,11 @@
+{
+  "Nexus": {
+    "Organization": "hoo",
+    "Environment": "ver",
+    "FundamentalsUrl": "http://example.org",
+    "Authentication": {
+      "ClientId": "foo",
+      "ClientSecret": "bar" 
+    }
+  } 
+}
