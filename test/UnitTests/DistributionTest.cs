@@ -11,6 +11,7 @@ using Moq;
 using Newtonsoft.Json;
 using Nexus.Link.AsyncCaller.Dispatcher.Helpers;
 using Nexus.Link.AsyncCaller.Dispatcher.Models;
+using Nexus.Link.AsyncCaller.Sdk.Helpers;
 using Nexus.Link.Libraries.Core.Application;
 using Nexus.Link.Libraries.Core.Logging;
 using Nexus.Link.Libraries.Core.MultiTenant.Model;
@@ -31,13 +32,13 @@ namespace UnitTests
         private static ILogger _logger;
         private static ExecutionContext _executionContext;
         private static readonly Tenant Tenant = new Tenant("hoo", "ver");
-        private const string QueueName = "the-queue";
         private static bool _runBackgroundJob;
 
         private Mock<IHttpClient> _httpSenderMock;
         private Mock<ILeverServiceConfiguration> _asyncCallerServiceConfigMock;
         private Mock<ILeverConfiguration> _asyncCallerConfigMock;
         private static HttpResponseMessage _okResponse;
+        private const string OkContent = "{ 'Status': 'OK' }";
 
         [ClassInitialize]
         public static void ClassInitialize(TestContext context)
@@ -46,7 +47,10 @@ namespace UnitTests
             _logger = new LoggerFactory().CreateLogger(nameof(DistributionTest));
             _executionContext = new ExecutionContext { FunctionAppDirectory = AppDomain.CurrentDomain.BaseDirectory };
             _runBackgroundJob = true;
-            _okResponse = new HttpResponseMessage(HttpStatusCode.OK);
+            _okResponse = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(OkContent, Encoding.UTF8, "application/json")
+            };
 
             SimulateQueueTrigger(null);
             SimulateQueueTrigger(1);
@@ -71,6 +75,7 @@ namespace UnitTests
 
             // By using RequestQueueHelper.MemoryQueueConnectionString, the SDK uses MemoryQueue.Instance(QueueName) as the queue
             _asyncCallerConfigMock.Setup(x => x.MandatoryValue<string>("ConnectionString")).Returns(RequestQueueHelper.MemoryQueueConnectionString);
+            // This project is based on DistributionVersion 2
             _asyncCallerConfigMock.Setup(x => x.Value<string>("DistributionVersion")).Returns("2");
             _asyncCallerConfigMock.Setup(x => x.Value<double?>("DefaultDeadlineTimeSpanInSeconds")).Returns(60);
 
@@ -88,41 +93,46 @@ namespace UnitTests
         }
 
         /// <summary>
-        /// Listens for messages on <see cref="MemoryQueue"/> and runs them through <see cref="Functions.Standard"/>, simulating a QueueTrigger.
+        /// Listens for messages on <see cref="MemoryQueue"/> and runs them through <see cref="Distributor"/>, simulating a QueueTrigger.
         /// </summary>
         private static void SimulateQueueTrigger(int? priority)
         {
-            var queue = GetQueue(priority);
             ThreadHelper.FireAndForget(async () =>
             {
+                var queue = GetQueue(priority);
                 while (_runBackgroundJob)
                 {
                     var message = queue.GetOneMessageNoBlock();
                     if (message == null) continue;
                     var requestEnvelope = JsonConvert.DeserializeObject<RequestEnvelopeMock>(message);
                     Log.LogInformation($"Message on queue '{queue.QueueName}: {requestEnvelope.RawRequest.Id}");
-                    await Functions.Standard(requestEnvelope, _logger, _executionContext);
+                    await Distributor.DistributeCall(requestEnvelope, _logger, _executionContext);
                     await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
             });
         }
 
-        private static async Task<RequestEnvelope> CreateRequestEnvelopeAsync(HttpMethod method, string body, int? priority = null)
+        private static async Task<RequestEnvelope> CreateRequestEnvelopeAsync(HttpMethod callOutMethod, string body, HttpMethod callBackMethod = null, int? priority = null)
         {
+            var request = new Request
+            {
+                Id = Guid.NewGuid().ToString(),
+                CallOut = new HttpRequestMessage(callOutMethod, "http://example.org")
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json")
+                }
+            };
+            if (callBackMethod != null)
+            {
+                request.CallBack = new HttpRequestMessage(callBackMethod, "http://example.org");
+            }
             var envelope = new RequestEnvelopeMock
             {
                 Organization = Tenant.Organization,
                 Environment = Tenant.Environment,
                 CreatedAt = DateTimeOffset.Now,
                 DeadlineAt = DateTimeOffset.Now.Add(TimeSpan.FromSeconds(10)),
-                RawRequest = await new Request
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    CallOut = new HttpRequestMessage(method, "http://example.org")
-                    {
-                        Content = new StringContent(body, Encoding.UTF8, "application/json")
-                    }
-                }.ToDataAsync()
+                RawRequest = await request.ToDataAsync()
             };
             envelope.RawRequest.Priority = priority;
             return envelope;
@@ -153,11 +163,51 @@ namespace UnitTests
                 .ReturnsAsync(_okResponse)
                 .Verifiable();
 
-            var requestEnvelope = await CreateRequestEnvelopeAsync(new HttpMethod(method), expectedRequestBody, priority);
-            await Functions.Standard(requestEnvelope, _logger, _executionContext);
+            var requestEnvelope = await CreateRequestEnvelopeAsync(new HttpMethod(method), expectedRequestBody, null, priority);
+            await Distributor.DistributeCall(requestEnvelope, _logger, _executionContext);
 
             _httpSenderMock.Verify(x => x.SendAsync(It.IsAny<HttpRequestMessage>(), It.IsAny<CancellationToken>()), Times.Once);
             Assert.AreEqual(expectedRequestBody, actualRequestBody);
+        }
+
+        [DataRow(null)]
+        [DataRow(1)]
+        [DataRow(2)]
+        [TestMethod]
+        public async Task Distributor_Sends_Request_With_Callback(int? priority)
+        {
+            const string expectedRequestBody = "{ 'foo': 'bar' }";
+            string actualRequestBody = null;
+            _httpSenderMock
+                .Setup(x => x.SendAsync(It.Is((HttpRequestMessage request) => request.Method == HttpMethod.Get), It.IsAny<CancellationToken>()))
+                .Callback(async (HttpRequestMessage request, CancellationToken token) => { actualRequestBody = await request.Content.ReadAsStringAsync(); })
+                .ReturnsAsync(_okResponse)
+                .Verifiable();
+
+            var resetEvent = new ManualResetEvent(false);
+            string callbackRequestBody = null;
+            _httpSenderMock
+                .Setup(x => x.SendAsync(It.Is((HttpRequestMessage request) => request.Method == HttpMethod.Post), It.IsAny<CancellationToken>()))
+                .Callback(async (HttpRequestMessage request, CancellationToken token) =>
+                {
+                    callbackRequestBody = await request.Content.ReadAsStringAsync();
+                    resetEvent.Set();
+                })
+                .ReturnsAsync(_okResponse)
+                .Verifiable();
+
+            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, HttpMethod.Post, priority);
+            await Distributor.DistributeCall(requestEnvelope, _logger, _executionContext);
+
+            Assert.IsTrue(resetEvent.WaitOne(TimeSpan.FromSeconds(3)));
+            _httpSenderMock.Verify(x => x.SendAsync(It.Is((HttpRequestMessage request) => request.Method == HttpMethod.Get), It.IsAny<CancellationToken>()), Times.Once);
+            _httpSenderMock.Verify(x => x.SendAsync(It.Is((HttpRequestMessage request) => request.Method == HttpMethod.Post), It.IsAny<CancellationToken>()), Times.Once);
+            Assert.AreEqual(expectedRequestBody, actualRequestBody);
+
+            var callbackResponseContent = JsonConvert.DeserializeObject<ResponseContent>(callbackRequestBody);
+            Assert.AreEqual(HttpStatusCode.OK, callbackResponseContent.StatusCode);
+            Assert.AreEqual(OkContent, callbackResponseContent.Payload);
+            Assert.AreEqual("application/json", callbackResponseContent.PayloadMediaType);
         }
 
         /// <summary>
@@ -165,7 +215,7 @@ namespace UnitTests
         ///
         /// We mock the first response to be failure. If it should be retried, the second response is mock to be ok.
         ///
-        /// We rely on <see cref="SimulateQueueTrigger"/> to listen to the queue and sending them again with <see cref="Functions.Standard"/>.
+        /// We rely on <see cref="SimulateQueueTrigger"/> to listen to the queue and sending them again with <see cref="Distributor.DistributeCall"/>.
         /// </summary>
         /// <remarks>
         /// When a message is put back on queue, there is a hard coded 1 second delay,
@@ -205,8 +255,8 @@ namespace UnitTests
                 })
                 .ReturnsAsync(count == 0 ? BuildResponse(failCode) : _okResponse);
 
-            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, priority);
-            await Functions.Standard(requestEnvelope, _logger, _executionContext);
+            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, null, priority);
+            await Distributor.DistributeCall(requestEnvelope, _logger, _executionContext);
 
             Assert.IsTrue(firstCall.WaitOne(TimeSpan.FromSeconds(2)));
 
@@ -223,6 +273,4 @@ namespace UnitTests
             Assert.AreEqual(expectedRequestBody, actualRequestBody, "The request body should survive being re-queued");
         }
     }
-
-    // TODO: Callback
 }
