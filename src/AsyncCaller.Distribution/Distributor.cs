@@ -18,7 +18,6 @@ using Nexus.Link.Libraries.Web.RestClientHelper;
 using Nexus.Link.Logger.Sdk;
 using Nexus.Link.Logger.Sdk.RestClients;
 using Xlent.Lever.AsyncCaller.Data.Models;
-using FulcrumApplicationHelper = Nexus.Link.Libraries.Web.AspNet.Application.FulcrumApplicationHelper;
 
 namespace AsyncCaller.Distribution
 {
@@ -75,10 +74,6 @@ namespace AsyncCaller.Distribution
                 var serviceOrganization = ConfigurationHelper.GetSetting("Nexus:Organization", context, true);
                 var serviceEnvironment = ConfigurationHelper.GetSetting("Nexus:Environment", context, true);
                 var serviceTenant = new Tenant(serviceOrganization, serviceEnvironment);
-                var runtimeLevel = ConfigurationHelper.GetEnum("Nexus:RunTimeLevel", context, RunTimeLevelEnum.Production);
-
-                FulcrumApplicationHelper.WebBasicSetup($"async-caller-function-app-{serviceTenant.Organization}-{serviceTenant.Environment}", serviceTenant, runtimeLevel);
-                ServiceContract.RequireValidated(serviceTenant, nameof(serviceTenant));
 
                 var nexusFundamentalsUrl = ConfigurationHelper.GetSetting("Nexus:FundamentalsUrl", context, true);
                 var clientId = ConfigurationHelper.GetSetting("Nexus:Authentication:ClientId", context, true);

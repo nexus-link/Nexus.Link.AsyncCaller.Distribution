@@ -7,7 +7,7 @@ namespace AsyncCaller.Distribution
 {
     public static class ConfigurationHelper
     {
-        private static IConfigurationRoot _config;
+        private static IConfiguration _config;
 
         public static string GetSetting(string key, ExecutionContext context, bool isMandatory)
         {
