@@ -21,15 +21,15 @@ Messages on the queues are interpreted as AC RequestEnvelopes and the AC SDK is 
 ## Required settings
 The function app needs a few app settings to work:
 
-| Name                        | Value                                                        |
-| --------------------------- | ------------------------------------------------------------ |
-| AzureWebJobsStorage         | Connection string to an Azure Storage account                |
-| Nexus:Organization          | Organization part of the tenant that this function app is running in |
-| Nexus:Environment           | Environment part of the tenant that this function app is running in |
-| FundamentalsUrl             | Usually "https://fundamentals-svc.nexus.link" for production and "https://prdsim-fulcrum-fundamentals.azurewebsites.net" for non-production |
-| Authentication:ClientId     | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
-| Authentication:ClientSecret | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
-| Nexus:RunTimeLevel          | RunTimeLevelEnum telling which type of environment the function app is in.<br />Defaults to "Production". |
+| Name                              | Value                                                        |
+| --------------------------------- | ------------------------------------------------------------ |
+| AzureWebJobsStorage               | Connection string to an Azure Storage account                |
+| Nexus:Organization                | Organization part of the tenant that this function app is running in |
+| Nexus:Environment                 | Environment part of the tenant that this function app is running in |
+| Nexus:FundamentalsUrl             | Usually "https://fundamentals-svc.nexus.link" for production and "https://prdsim-fulcrum-fundamentals.azurewebsites.net" for non-production |
+| Nexus:Authentication:ClientId     | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
+| Nexus:Authentication:ClientSecret | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
+| Nexus:RunTimeLevel                | RunTimeLevelEnum telling which type of environment the function app is in.<br />Defaults to "Production". |
 
 ## Logging
 
