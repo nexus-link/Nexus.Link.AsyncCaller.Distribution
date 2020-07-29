@@ -75,16 +75,15 @@ namespace AsyncCaller.Distribution
                 var serviceOrganization = ConfigurationHelper.GetSetting("Nexus:Organization", context, true);
                 var serviceEnvironment = ConfigurationHelper.GetSetting("Nexus:Environment", context, true);
                 var serviceTenant = new Tenant(serviceOrganization, serviceEnvironment);
+                var runtimeLevel = ConfigurationHelper.GetEnum("Nexus:RunTimeLevel", context, RunTimeLevelEnum.Production);
+
+                FulcrumApplicationHelper.WebBasicSetup($"async-caller-function-app-{serviceTenant.Organization}-{serviceTenant.Environment}", serviceTenant, runtimeLevel);
                 ServiceContract.RequireValidated(serviceTenant, nameof(serviceTenant));
 
                 var nexusFundamentalsUrl = ConfigurationHelper.GetSetting("Nexus:FundamentalsUrl", context, true);
                 var clientId = ConfigurationHelper.GetSetting("Nexus:Authentication:ClientId", context, true);
                 var clientSecret = ConfigurationHelper.GetSetting("Nexus:Authentication:ClientSecret", context, true);
                 var nexusServiceCredentials = new AuthenticationCredentials { ClientId = clientId, ClientSecret = clientSecret };
-
-                var runtimeLevel = ConfigurationHelper.GetEnum("Nexus:RunTimeLevel", context, RunTimeLevelEnum.Production);
-
-                FulcrumApplicationHelper.WebBasicSetup($"async-caller-function-app-{serviceTenant.Organization}-{serviceTenant.Environment}", serviceTenant, runtimeLevel);
 
                 var loggingConfiguration = new LeverServiceConfiguration(serviceTenant, "logging", nexusFundamentalsUrl, nexusServiceCredentials, nexusFundamentalsUrl);
                 var logClient = new LogClient("http://this.will.be.ignored", new BasicAuthenticationCredentials());
