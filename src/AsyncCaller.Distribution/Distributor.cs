@@ -9,6 +9,7 @@ using Nexus.Link.AsyncCaller.Dispatcher.Logic;
 using Nexus.Link.Configurations.Sdk;
 using Nexus.Link.Libraries.Core.Application;
 using Nexus.Link.Libraries.Core.Assert;
+using Nexus.Link.Libraries.Core.Logging;
 using Nexus.Link.Libraries.Core.MultiTenant.Model;
 using Nexus.Link.Libraries.Core.Platform.Authentication;
 using Nexus.Link.Libraries.Core.Platform.Configurations;
@@ -41,22 +42,28 @@ namespace AsyncCaller.Distribution
         {
             try
             {
+                // We need setup basics like service tenant, logging and a way of fetching configuration from Nexus Fundamentals
                 SetupFulcrumApplication(context);
                 InternalContract.RequireNotNull(AsyncCallerServiceConfiguration, nameof(AsyncCallerServiceConfiguration));
 
+                // Client tenant is found in the request envelope
                 var clientTenant = new Tenant(requestEnvelope.Organization, requestEnvelope.Environment);
                 ServiceContract.RequireValidated(clientTenant, nameof(clientTenant));
                 FulcrumApplication.Context.ClientTenant = clientTenant;
 
+                // Setup the tenants AC configuration (cache and refresh is handled by LeverServiceConfiguration)
                 var clientConfig = await AsyncCallerServiceConfiguration.GetConfigurationForAsync(clientTenant);
                 FulcrumApplication.Context.LeverConfiguration = clientConfig;
 
+                // Distribute the request. RequestHandler will put back on queue if necessary, and also handle callbacks
                 var handler = new RequestHandler(HttpSender, clientTenant, FulcrumApplication.Context.LeverConfiguration, requestEnvelope);
                 await handler.ProcessOneRequestAsync();
             }
             catch (Exception e)
             {
-                log.LogError(e, "Failed to distribute request. (Code location 5ADA0B3E-2344-4977-922B-F7BB870EA065)");
+                const string errorMessage = "Failed to distribute request. (Code location 5ADA0B3E-2344-4977-922B-F7BB870EA065)";
+                log.LogError(e, errorMessage);
+                Log.LogError(errorMessage, e);
                 throw;
             }
         }
