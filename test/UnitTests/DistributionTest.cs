@@ -19,7 +19,6 @@ using Nexus.Link.Libraries.Core.Platform.Configurations;
 using Nexus.Link.Libraries.Core.Threads;
 using Nexus.Link.Libraries.Web.RestClientHelper;
 using Xlent.Lever.AsyncCaller.Storage.Memory.Queue;
-using ExecutionContext = Microsoft.Azure.WebJobs.ExecutionContext;
 using RequestEnvelope = Xlent.Lever.AsyncCaller.Data.Models.RequestEnvelope;
 
 namespace UnitTests
@@ -30,7 +29,6 @@ namespace UnitTests
         #region Initilize
 
         private static ILogger _logger;
-        private static ExecutionContext _executionContext;
         private static readonly Tenant Tenant = new Tenant("hoo", "ver");
         private static bool _runBackgroundJob;
 
@@ -45,7 +43,6 @@ namespace UnitTests
         {
             FulcrumApplicationHelper.UnitTestSetup(nameof(DistributionTest));
             _logger = new LoggerFactory().CreateLogger(nameof(DistributionTest));
-            _executionContext = new ExecutionContext { FunctionAppDirectory = AppDomain.CurrentDomain.BaseDirectory };
             _runBackgroundJob = true;
             _okResponse = new HttpResponseMessage(HttpStatusCode.OK)
             {
@@ -80,7 +77,7 @@ namespace UnitTests
             _asyncCallerConfigMock.Setup(x => x.Value<double?>("DefaultDeadlineTimeSpanInSeconds")).Returns(60);
 
             Distributor.HttpSender = _httpSenderMock.Object;
-            Distributor.AsyncCallerServiceConfiguration = _asyncCallerServiceConfigMock.Object;
+            Startup.AsyncCallerServiceConfiguration = _asyncCallerServiceConfigMock.Object;
         }
 
         #endregion
@@ -106,7 +103,7 @@ namespace UnitTests
                     if (message == null) continue;
                     var requestEnvelope = JsonConvert.DeserializeObject<RequestEnvelopeMock>(message);
                     Log.LogInformation($"Message on queue '{queue.QueueName}: {requestEnvelope.RawRequest.Id}");
-                    await Distributor.DistributeCall(requestEnvelope, _logger, _executionContext);
+                    await Distributor.DistributeCall(requestEnvelope, _logger);
                     await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
             });
@@ -164,7 +161,7 @@ namespace UnitTests
                 .Verifiable();
 
             var requestEnvelope = await CreateRequestEnvelopeAsync(new HttpMethod(method), expectedRequestBody, null, priority);
-            await Distributor.DistributeCall(requestEnvelope, _logger, _executionContext);
+            await Distributor.DistributeCall(requestEnvelope, _logger);
 
             _httpSenderMock.Verify(x => x.SendAsync(It.IsAny<HttpRequestMessage>(), It.IsAny<CancellationToken>()), Times.Once);
             Assert.AreEqual(expectedRequestBody, actualRequestBody);
@@ -197,7 +194,7 @@ namespace UnitTests
                 .Verifiable();
 
             var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, HttpMethod.Post, priority);
-            await Distributor.DistributeCall(requestEnvelope, _logger, _executionContext);
+            await Distributor.DistributeCall(requestEnvelope, _logger);
 
             Assert.IsTrue(resetEvent.WaitOne(TimeSpan.FromSeconds(3)));
             _httpSenderMock.Verify(x => x.SendAsync(It.Is((HttpRequestMessage request) => request.Method == HttpMethod.Get), It.IsAny<CancellationToken>()), Times.Once);
@@ -256,7 +253,7 @@ namespace UnitTests
                 .ReturnsAsync(count == 0 ? BuildResponse(failCode) : _okResponse);
 
             var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, null, priority);
-            await Distributor.DistributeCall(requestEnvelope, _logger, _executionContext);
+            await Distributor.DistributeCall(requestEnvelope, _logger);
 
             Assert.IsTrue(firstCall.WaitOne(TimeSpan.FromSeconds(2)));
 

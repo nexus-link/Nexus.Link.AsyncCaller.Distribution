@@ -2,28 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
-using Microsoft.Rest;
 using Nexus.Link.AsyncCaller.Dispatcher.Logic;
-using Nexus.Link.Configurations.Sdk;
 using Nexus.Link.Libraries.Core.Application;
 using Nexus.Link.Libraries.Core.Assert;
 using Nexus.Link.Libraries.Core.Logging;
 using Nexus.Link.Libraries.Core.MultiTenant.Model;
-using Nexus.Link.Libraries.Core.Platform.Authentication;
-using Nexus.Link.Libraries.Core.Platform.Configurations;
 using Nexus.Link.Libraries.Web.Pipe.Outbound;
 using Nexus.Link.Libraries.Web.RestClientHelper;
-using Nexus.Link.Logger.Sdk;
-using Nexus.Link.Logger.Sdk.RestClients;
 using Xlent.Lever.AsyncCaller.Data.Models;
 
 namespace AsyncCaller.Distribution
 {
     public static class Distributor
     {
-        public static ILeverServiceConfiguration AsyncCallerServiceConfiguration { get; set; }
         public static IHttpClient HttpSender { get; set; }
 
         static Distributor()
@@ -37,13 +29,12 @@ namespace AsyncCaller.Distribution
             HttpSender = new HttpClientWrapper(httpClient);
         }
 
-        public static async Task DistributeCall(RequestEnvelope requestEnvelope, ILogger log, ExecutionContext context)
+        public static async Task DistributeCall(RequestEnvelope requestEnvelope, ILogger log)
         {
             try
             {
-                // We need setup basics like service tenant, logging and a way of fetching configuration from Nexus Fundamentals
-                SetupFulcrumApplication(context);
-                InternalContract.RequireNotNull(AsyncCallerServiceConfiguration, nameof(AsyncCallerServiceConfiguration));
+                InternalContract.RequireNotNull(Startup.AsyncCallerServiceConfiguration, nameof(Startup.AsyncCallerServiceConfiguration),
+                    $"Missing {nameof(Startup.AsyncCallerServiceConfiguration)}. Please check your Nexus configuration for this function app.");
 
                 // Client tenant is found in the request envelope
                 var clientTenant = new Tenant(requestEnvelope.Organization, requestEnvelope.Environment);
@@ -51,7 +42,7 @@ namespace AsyncCaller.Distribution
                 FulcrumApplication.Context.ClientTenant = clientTenant;
 
                 // Setup the tenants AC configuration (cache and refresh is handled by LeverServiceConfiguration)
-                var clientConfig = await AsyncCallerServiceConfiguration.GetConfigurationForAsync(clientTenant);
+                var clientConfig = await Startup.AsyncCallerServiceConfiguration.GetConfigurationForAsync(clientTenant);
                 FulcrumApplication.Context.LeverConfiguration = clientConfig;
 
                 // Distribute the request. RequestHandler will put back on queue if necessary, and also handle callbacks
@@ -64,28 +55,6 @@ namespace AsyncCaller.Distribution
                 log.LogError(e, errorMessage);
                 Log.LogError(errorMessage, e);
                 throw;
-            }
-        }
-
-        private static void SetupFulcrumApplication(ExecutionContext context)
-        {
-            if (AsyncCallerServiceConfiguration == null)
-            {
-                var serviceOrganization = ConfigurationHelper.GetSetting("Nexus:Organization", context, true);
-                var serviceEnvironment = ConfigurationHelper.GetSetting("Nexus:Environment", context, true);
-                var serviceTenant = new Tenant(serviceOrganization, serviceEnvironment);
-
-                var nexusFundamentalsUrl = ConfigurationHelper.GetSetting("Nexus:FundamentalsUrl", context, true);
-                var clientId = ConfigurationHelper.GetSetting("Nexus:Authentication:ClientId", context, true);
-                var clientSecret = ConfigurationHelper.GetSetting("Nexus:Authentication:ClientSecret", context, true);
-                var nexusServiceCredentials = new AuthenticationCredentials { ClientId = clientId, ClientSecret = clientSecret };
-
-                var loggingConfiguration = new LeverServiceConfiguration(serviceTenant, "logging", nexusFundamentalsUrl, nexusServiceCredentials, nexusFundamentalsUrl);
-                var logClient = new LogClient("http://this.will.be.ignored", new BasicAuthenticationCredentials());
-                var logger = new FulcrumLogger(logClient, loggingConfiguration);
-                FulcrumApplication.Setup.SynchronousFastLogger = logger;
-
-                AsyncCallerServiceConfiguration = new LeverServiceConfiguration(serviceTenant, "AsyncCaller", nexusFundamentalsUrl, nexusServiceCredentials, nexusFundamentalsUrl);
             }
         }
     }
