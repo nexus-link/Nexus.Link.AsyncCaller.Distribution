@@ -245,9 +245,10 @@ namespace UnitTests
                 .Setup(x => x.SendAsync(It.IsAny<HttpRequestMessage>(), It.IsAny<CancellationToken>()))
                 .Callback(async (HttpRequestMessage request, CancellationToken token) =>
                 {
-                    if (count == 0) firstCall.Set();
-                    else secondCall.Set();
                     count++;
+                    if (count == 1) firstCall.Set();
+                    else secondCall.Set();
+                    
                     actualRequestBody = await request.Content.ReadAsStringAsync();
                 })
                 .ReturnsAsync(count == 0 ? BuildResponse(failCode) : _okResponse);
@@ -255,11 +256,11 @@ namespace UnitTests
             var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, null, priority);
             await Distributor.DistributeCall(requestEnvelope, _logger);
 
-            Assert.IsTrue(firstCall.WaitOne(TimeSpan.FromSeconds(2)));
+            Assert.IsTrue(firstCall.WaitOne(TimeSpan.FromSeconds(5)));
 
             if (shouldBeRetried)
             {
-                Assert.IsTrue(secondCall.WaitOne(TimeSpan.FromSeconds(2)));
+                Assert.IsTrue(secondCall.WaitOne(TimeSpan.FromSeconds(5)));
                 Assert.AreEqual(2, count, "The http sender should have been call twice");
             }
             else
