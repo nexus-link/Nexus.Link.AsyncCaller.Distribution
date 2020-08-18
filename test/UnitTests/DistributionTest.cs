@@ -13,6 +13,7 @@ using Nexus.Link.AsyncCaller.Dispatcher.Helpers;
 using Nexus.Link.AsyncCaller.Dispatcher.Models;
 using Nexus.Link.AsyncCaller.Sdk.Helpers;
 using Nexus.Link.Libraries.Core.Application;
+using Nexus.Link.Libraries.Core.Decoupling;
 using Nexus.Link.Libraries.Core.Logging;
 using Nexus.Link.Libraries.Core.MultiTenant.Model;
 using Nexus.Link.Libraries.Core.Platform.Configurations;
@@ -72,8 +73,8 @@ namespace UnitTests
 
             // By using RequestQueueHelper.MemoryQueueConnectionString, the SDK uses MemoryQueue.Instance(QueueName) as the queue
             _asyncCallerConfigMock.Setup(x => x.MandatoryValue<string>("ConnectionString")).Returns(RequestQueueHelper.MemoryQueueConnectionString);
-            // This project is based on DistributionVersion 2
-            _asyncCallerConfigMock.Setup(x => x.Value<string>("DistributionVersion")).Returns("2");
+            // This project is based on SchemaVersion 1
+            _asyncCallerConfigMock.Setup(x => x.Value<int?>(nameof(AnonymousSchema.SchemaVersion))).Returns(1);
             _asyncCallerConfigMock.Setup(x => x.Value<double?>("DefaultDeadlineTimeSpanInSeconds")).Returns(60);
 
             Distributor.HttpSender = _httpSenderMock.Object;
@@ -86,7 +87,9 @@ namespace UnitTests
 
         private static MemoryQueue GetQueue(int? priority)
         {
-            return MemoryQueue.Instance(RequestQueueHelper.GetQueueNameForDistributionVersion2(priority));
+            var queueName = RequestQueueHelper.DefaultQueueName;
+            if (priority.HasValue) queueName += RequestQueueHelper.PriorityQueueNameInterfix + priority;
+            return MemoryQueue.Instance(queueName);
         }
 
         /// <summary>

@@ -1,7 +1,7 @@
 # Nexus.Link.AsyncCaller.Distribution
 Code meant to be deployed on an Azure Function App, listening to Azure Storage Queues.
 
-We use `DistributionVersion` 2 in Nexus Async Caller, which means the queue names are fixed (you can find them in Functions.cs).
+We use `SchemaVersion` 1 in Nexus Async Caller, which means the queue names are fixed (you can find them in Functions.cs).
 
 To get going, see [Nexus Async Caller Setup Guide](https://docs.nexus.link/docs/nexus-async-caller-setup-1-5-onwards).
 
