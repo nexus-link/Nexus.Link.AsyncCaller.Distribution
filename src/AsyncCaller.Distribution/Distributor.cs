@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Nexus.Link.AsyncCaller.Dispatcher.Logic;
+using Nexus.Link.AsyncCaller.Sdk.Data.Models;
+using Nexus.Link.AsyncCaller.Sdk.Dispatcher.Logic;
 using Nexus.Link.Libraries.Core.Application;
 using Nexus.Link.Libraries.Core.Assert;
 using Nexus.Link.Libraries.Core.Logging;
 using Nexus.Link.Libraries.Core.MultiTenant.Model;
 using Nexus.Link.Libraries.Web.Pipe.Outbound;
 using Nexus.Link.Libraries.Web.RestClientHelper;
-using Xlent.Lever.AsyncCaller.Data.Models;
 
 namespace AsyncCaller.Distribution
 {
@@ -29,7 +29,7 @@ namespace AsyncCaller.Distribution
             HttpSender = new HttpClientWrapper(httpClient);
         }
 
-        public static async Task DistributeCall(RequestEnvelope requestEnvelope, ILogger log)
+        public static async Task DistributeCall(RawRequestEnvelope requestEnvelope, ILogger log)
         {
             try
             {

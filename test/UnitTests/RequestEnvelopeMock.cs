@@ -1,9 +1,9 @@
 using System;
-using Xlent.Lever.AsyncCaller.Data.Models;
+using Nexus.Link.AsyncCaller.Sdk.Data.Models;
 
 namespace UnitTests
 {
-    internal class RequestEnvelopeMock : RequestEnvelope
+    internal class RequestEnvelopeMock : RawRequestEnvelope
     {
         // To prevent the random delay for retries
         public new DateTimeOffset NextAttemptAt => DateTimeOffset.Now;

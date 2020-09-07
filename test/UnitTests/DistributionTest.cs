@@ -9,9 +9,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Newtonsoft.Json;
-using Nexus.Link.AsyncCaller.Dispatcher.Helpers;
-using Nexus.Link.AsyncCaller.Dispatcher.Models;
-using Nexus.Link.AsyncCaller.Sdk.Helpers;
+using Nexus.Link.AsyncCaller.Sdk.Common.Models;
+using Nexus.Link.AsyncCaller.Sdk.Data.Models;
+using Nexus.Link.AsyncCaller.Sdk.Dispatcher.Helpers;
+using Nexus.Link.AsyncCaller.Sdk.Dispatcher.Models;
+using Nexus.Link.AsyncCaller.Sdk.Storage.Memory.Queue;
 using Nexus.Link.Libraries.Core.Application;
 using Nexus.Link.Libraries.Core.Decoupling;
 using Nexus.Link.Libraries.Core.Logging;
@@ -19,8 +21,6 @@ using Nexus.Link.Libraries.Core.MultiTenant.Model;
 using Nexus.Link.Libraries.Core.Platform.Configurations;
 using Nexus.Link.Libraries.Core.Threads;
 using Nexus.Link.Libraries.Web.RestClientHelper;
-using Xlent.Lever.AsyncCaller.Storage.Memory.Queue;
-using RequestEnvelope = Xlent.Lever.AsyncCaller.Data.Models.RequestEnvelope;
 
 namespace UnitTests
 {
@@ -88,7 +88,7 @@ namespace UnitTests
         private static MemoryQueue GetQueue(int? priority)
         {
             var queueName = RequestQueueHelper.DefaultQueueName;
-            if (priority.HasValue) queueName += RequestQueueHelper.PriorityQueueNameInterfix + priority;
+            if (priority.HasValue) queueName += RequestQueueHelper.MultipleQueueNameInterfix + priority;
             return MemoryQueue.Instance(queueName);
         }
 
@@ -105,14 +105,14 @@ namespace UnitTests
                     var message = queue.GetOneMessageNoBlock();
                     if (message == null) continue;
                     var requestEnvelope = JsonConvert.DeserializeObject<RequestEnvelopeMock>(message);
-                    Log.LogInformation($"Message on queue '{queue.QueueName}: {requestEnvelope.RawRequest.Id}");
+                    Log.LogInformation($"Message on queue '{queue.QueueName}: {requestEnvelope.RawRequest.Title}");
                     await Distributor.DistributeCall(requestEnvelope, _logger);
                     await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
             });
         }
 
-        private static async Task<RequestEnvelope> CreateRequestEnvelopeAsync(HttpMethod callOutMethod, string body, HttpMethod callBackMethod = null, int? priority = null)
+        private static async Task<RawRequestEnvelope> CreateRequestEnvelopeAsync(HttpMethod callOutMethod, string body, HttpMethod callBackMethod = null, int? priority = null)
         {
             var request = new Request
             {
@@ -132,7 +132,7 @@ namespace UnitTests
                 Environment = Tenant.Environment,
                 CreatedAt = DateTimeOffset.Now,
                 DeadlineAt = DateTimeOffset.Now.Add(TimeSpan.FromSeconds(10)),
-                RawRequest = await request.ToDataAsync()
+                RawRequest = await request.ToRawAsync()
             };
             envelope.RawRequest.Priority = priority;
             return envelope;
@@ -231,6 +231,7 @@ namespace UnitTests
         [DataRow(HttpStatusCode.InternalServerError, true, null)]
         [DataRow(HttpStatusCode.InternalServerError, true, 1)]
         [DataRow(HttpStatusCode.BadGateway, true, null)]
+        [DataRow(HttpStatusCode.BadGateway, true, 1)]
         [DataRow((HttpStatusCode)510, false, null)]
         [DataRow((HttpStatusCode)526, false, null)]
         [TestMethod]
@@ -248,6 +249,7 @@ namespace UnitTests
                 .Setup(x => x.SendAsync(It.IsAny<HttpRequestMessage>(), It.IsAny<CancellationToken>()))
                 .Callback(async (HttpRequestMessage request, CancellationToken token) =>
                 {
+                    Console.WriteLine($"HTTP call {request.RequestUri}");
                     count++;
                     if (count == 1) firstCall.Set();
                     else secondCall.Set();
@@ -264,7 +266,7 @@ namespace UnitTests
             if (shouldBeRetried)
             {
                 Assert.IsTrue(secondCall.WaitOne(TimeSpan.FromSeconds(5)));
-                Assert.AreEqual(2, count, "The http sender should have been call twice");
+                Assert.AreEqual(2, count, "The http sender should have been called twice");
             }
             else
             {
