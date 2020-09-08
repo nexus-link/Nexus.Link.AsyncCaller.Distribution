@@ -22,6 +22,8 @@ using Nexus.Link.Libraries.Core.Platform.Configurations;
 using Nexus.Link.Libraries.Core.Threads;
 using Nexus.Link.Libraries.Web.RestClientHelper;
 
+[assembly: Parallelize(Scope = ExecutionScope.MethodLevel, Workers = 1)]
+
 namespace UnitTests
 {
     [TestClass]
@@ -34,8 +36,8 @@ namespace UnitTests
         private static bool _runBackgroundJob;
 
         private Mock<IHttpClient> _httpSenderMock;
-        private Mock<ILeverServiceConfiguration> _asyncCallerServiceConfigMock;
-        private Mock<ILeverConfiguration> _asyncCallerConfigMock;
+        private static Mock<ILeverServiceConfiguration> _asyncCallerServiceConfigMock;
+        private static Mock<ILeverConfiguration> _asyncCallerConfigMock;
         private static HttpResponseMessage _okResponse;
         private const string OkContent = "{ 'Status': 'OK' }";
 
@@ -43,12 +45,25 @@ namespace UnitTests
         public static void ClassInitialize(TestContext context)
         {
             FulcrumApplicationHelper.UnitTestSetup(nameof(DistributionTest));
+            FulcrumApplication.Setup.SynchronousFastLogger = new MinimalFulcrumLogger();
             _logger = new LoggerFactory().CreateLogger(nameof(DistributionTest));
-            _runBackgroundJob = true;
             _okResponse = new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(OkContent, Encoding.UTF8, "application/json")
             };
+            _runBackgroundJob = true;
+
+            _asyncCallerConfigMock = new Mock<ILeverConfiguration>();
+            _asyncCallerServiceConfigMock = new Mock<ILeverServiceConfiguration>();
+            _asyncCallerServiceConfigMock.Setup(x => x.GetConfigurationForAsync(Tenant)).ReturnsAsync(_asyncCallerConfigMock.Object);
+
+            // By using RequestQueueHelper.MemoryQueueConnectionString, the SDK uses MemoryQueue.Instance(QueueName) as the queue
+            _asyncCallerConfigMock.Setup(x => x.MandatoryValue<string>("ConnectionString")).Returns(RequestQueueHelper.MemoryQueueConnectionString);
+            // This project is based on SchemaVersion 1
+            _asyncCallerConfigMock.Setup(x => x.Value<int?>(nameof(AnonymousSchema.SchemaVersion))).Returns(1);
+            _asyncCallerConfigMock.Setup(x => x.Value<double?>("DefaultDeadlineTimeSpanInSeconds")).Returns(60);
+
+            Startup.AsyncCallerServiceConfiguration = _asyncCallerServiceConfigMock.Object;
 
             SimulateQueueTrigger(null);
             SimulateQueueTrigger(1);
@@ -63,22 +78,17 @@ namespace UnitTests
         }
 
         [TestInitialize]
-        public void Initialize()
+        public async Task Initialize()
         {
+            Log.LogInformation("Initializing (new http sender mock, etc)");
             _httpSenderMock = new Mock<IHttpClient>();
             _httpSenderMock.Setup(x => x.SimulateOutgoingCalls).Returns(true);
-            _asyncCallerConfigMock = new Mock<ILeverConfiguration>();
-            _asyncCallerServiceConfigMock = new Mock<ILeverServiceConfiguration>();
-            _asyncCallerServiceConfigMock.Setup(x => x.GetConfigurationForAsync(Tenant)).ReturnsAsync(_asyncCallerConfigMock.Object);
-
-            // By using RequestQueueHelper.MemoryQueueConnectionString, the SDK uses MemoryQueue.Instance(QueueName) as the queue
-            _asyncCallerConfigMock.Setup(x => x.MandatoryValue<string>("ConnectionString")).Returns(RequestQueueHelper.MemoryQueueConnectionString);
-            // This project is based on SchemaVersion 1
-            _asyncCallerConfigMock.Setup(x => x.Value<int?>(nameof(AnonymousSchema.SchemaVersion))).Returns(1);
-            _asyncCallerConfigMock.Setup(x => x.Value<double?>("DefaultDeadlineTimeSpanInSeconds")).Returns(60);
 
             Distributor.HttpSender = _httpSenderMock.Object;
-            Startup.AsyncCallerServiceConfiguration = _asyncCallerServiceConfigMock.Object;
+
+            await GetQueue(null).ClearAsync();
+            await GetQueue(1).ClearAsync();
+            await GetQueue(2).ClearAsync();
         }
 
         #endregion
@@ -87,9 +97,7 @@ namespace UnitTests
 
         private static MemoryQueue GetQueue(int? priority)
         {
-            var queueName = RequestQueueHelper.DefaultQueueName;
-            if (priority.HasValue) queueName += RequestQueueHelper.MultipleQueueNameInterfix + priority;
-            return MemoryQueue.Instance(queueName);
+            return (MemoryQueue)RequestQueueHelper.GetRequestQueueOrThrow(Tenant, _asyncCallerConfigMock.Object, priority).GetQueue();
         }
 
         /// <summary>
@@ -97,34 +105,39 @@ namespace UnitTests
         /// </summary>
         private static void SimulateQueueTrigger(int? priority)
         {
+            Task.Delay(TimeSpan.FromMilliseconds(100)).Wait();
             ThreadHelper.FireAndForget(async () =>
             {
                 var queue = GetQueue(priority);
+                Log.LogInformation($"Listening to queue '{queue}'");
                 while (_runBackgroundJob)
                 {
+                    await Task.Delay(TimeSpan.FromMilliseconds(100));
+                    Log.LogVerbose($"Checking for message on queue '{queue}'");
                     var message = queue.GetOneMessageNoBlock();
                     if (message == null) continue;
                     var requestEnvelope = JsonConvert.DeserializeObject<RequestEnvelopeMock>(message);
-                    Log.LogInformation($"Message on queue '{queue.QueueName}: {requestEnvelope.RawRequest.Title}");
+                    Log.LogInformation($"Popped '{queue.QueueName}' | {requestEnvelope.RawRequest.Title} | prio: '{requestEnvelope.RawRequest.Priority}' | attempts: {requestEnvelope.Attempts}");
                     await Distributor.DistributeCall(requestEnvelope, _logger);
-                    await Task.Delay(TimeSpan.FromMilliseconds(100));
                 }
+                Log.LogInformation($"Stopped listening to queue '{queue}'");
             });
         }
 
-        private static async Task<RawRequestEnvelope> CreateRequestEnvelopeAsync(HttpMethod callOutMethod, string body, HttpMethod callBackMethod = null, int? priority = null)
+        private static async Task<RawRequestEnvelope> CreateRequestEnvelopeAsync(HttpMethod callOutMethod, string body, string path, HttpMethod callBackMethod = null, int? priority = null)
         {
+            var url = $"https://example.org{path}";
             var request = new Request
             {
                 Id = Guid.NewGuid().ToString(),
-                CallOut = new HttpRequestMessage(callOutMethod, "http://example.org")
+                CallOut = new HttpRequestMessage(callOutMethod, url)
                 {
                     Content = new StringContent(body, Encoding.UTF8, "application/json")
                 }
             };
             if (callBackMethod != null)
             {
-                request.CallBack = new HttpRequestMessage(callBackMethod, "http://example.org");
+                request.CallBack = new HttpRequestMessage(callBackMethod, $"{url}/callback");
             }
             var envelope = new RequestEnvelopeMock
             {
@@ -163,7 +176,7 @@ namespace UnitTests
                 .ReturnsAsync(_okResponse)
                 .Verifiable();
 
-            var requestEnvelope = await CreateRequestEnvelopeAsync(new HttpMethod(method), expectedRequestBody, null, priority);
+            var requestEnvelope = await CreateRequestEnvelopeAsync(new HttpMethod(method), expectedRequestBody, "/", null, priority);
             await Distributor.DistributeCall(requestEnvelope, _logger);
 
             _httpSenderMock.Verify(x => x.SendAsync(It.IsAny<HttpRequestMessage>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -196,7 +209,7 @@ namespace UnitTests
                 .ReturnsAsync(_okResponse)
                 .Verifiable();
 
-            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, HttpMethod.Post, priority);
+            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, "/", HttpMethod.Post, priority);
             await Distributor.DistributeCall(requestEnvelope, _logger);
 
             Assert.IsTrue(resetEvent.WaitOne(TimeSpan.FromSeconds(3)));
@@ -213,7 +226,7 @@ namespace UnitTests
         /// <summary>
         /// This test will make sure that a request that got a failure response is handled in the correct way.
         ///
-        /// We mock the first response to be failure. If it should be retried, the second response is mock to be ok.
+        /// We mock the first response to be failure. If it should be retried, the second response is mocked to be ok.
         ///
         /// We rely on <see cref="SimulateQueueTrigger"/> to listen to the queue and sending them again with <see cref="Distributor.DistributeCall"/>.
         /// </summary>
@@ -221,51 +234,60 @@ namespace UnitTests
         /// When a message is put back on queue, there is a hard coded 1 second delay,
         /// which means that test runs with "shouldBeRetried" true will take at least one second.
         /// </remarks>
+        [DataRow((HttpStatusCode)425, true, null)]
+        [DataRow((HttpStatusCode)429, true, null)]
+        [DataRow(HttpStatusCode.BadGateway, true, null)]
+        [DataRow(HttpStatusCode.BadGateway, true, 1)]
         [DataRow(HttpStatusCode.BadRequest, false, null)]
+        [DataRow(HttpStatusCode.InternalServerError, true, null)]
+        [DataRow(HttpStatusCode.InternalServerError, true, 1)]
+        [DataRow(HttpStatusCode.NotExtended, false, null)]
         [DataRow(HttpStatusCode.NotFound, true, null)]
         [DataRow(HttpStatusCode.NotFound, true, 1)]
         [DataRow(HttpStatusCode.NotFound, true, 2)]
         [DataRow(HttpStatusCode.RequestTimeout, true, null)]
-        [DataRow((HttpStatusCode)425, true, null)]
-        [DataRow((HttpStatusCode)429, true, null)]
-        [DataRow(HttpStatusCode.InternalServerError, true, null)]
-        [DataRow(HttpStatusCode.InternalServerError, true, 1)]
-        [DataRow(HttpStatusCode.BadGateway, true, null)]
-        [DataRow(HttpStatusCode.BadGateway, true, 1)]
-        [DataRow((HttpStatusCode)510, false, null)]
-        [DataRow((HttpStatusCode)526, false, null)]
+        [DataRow(HttpStatusCode.TooManyRequests, false, null)]
         [TestMethod]
         public async Task Distributor_Handles_Retries(HttpStatusCode failCode, bool shouldBeRetried, int? priority)
         {
-            await GetQueue(priority).ClearAsync();
-
             var firstCall = new ManualResetEvent(false);
             var secondCall = new ManualResetEvent(false);
             const string expectedRequestBody = "{ 'foo': 'bar' }";
 
+            var path = $"/{failCode}/{shouldBeRetried}/{priority ?? -1}";
+
             var count = 0;
+            var failedResponseReturned = false;
             string actualRequestBody = null;
+
             _httpSenderMock
                 .Setup(x => x.SendAsync(It.IsAny<HttpRequestMessage>(), It.IsAny<CancellationToken>()))
                 .Callback(async (HttpRequestMessage request, CancellationToken token) =>
                 {
-                    Console.WriteLine($"HTTP call {request.RequestUri}");
+                    Log.LogInformation($"HTTP call {request.RequestUri} | count: {count}");
+                    Assert.AreEqual(path, request.RequestUri.PathAndQuery);
                     count++;
                     if (count == 1) firstCall.Set();
                     else secondCall.Set();
-                    
+
                     actualRequestBody = await request.Content.ReadAsStringAsync();
                 })
-                .ReturnsAsync(count == 0 ? BuildResponse(failCode) : _okResponse);
+                .ReturnsAsync(() =>
+                {
+                    var response = !failedResponseReturned ? BuildResponse(failCode) : _okResponse;
+                    failedResponseReturned = true;
+                    return response;
+                });
 
-            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, null, priority);
+            // Fake popping the queue with a AC request envelope
+            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, path, null, priority);
             await Distributor.DistributeCall(requestEnvelope, _logger);
 
-            Assert.IsTrue(firstCall.WaitOne(TimeSpan.FromSeconds(5)));
+            Assert.IsTrue(firstCall.WaitOne(TimeSpan.FromSeconds(5)), "Expected a call to the Http Sender");
 
             if (shouldBeRetried)
             {
-                Assert.IsTrue(secondCall.WaitOne(TimeSpan.FromSeconds(5)));
+                Assert.IsTrue(secondCall.WaitOne(TimeSpan.FromSeconds(5)), "Expected a second call to the Http Sender");
                 Assert.AreEqual(2, count, "The http sender should have been called twice");
             }
             else
@@ -274,6 +296,15 @@ namespace UnitTests
             }
 
             Assert.AreEqual(expectedRequestBody, actualRequestBody, "The request body should survive being re-queued");
+        }
+    }
+
+    public class MinimalFulcrumLogger : ISyncLogger
+    {
+        public void LogSync(LogRecord logRecord)
+        {
+            var message = $"{logRecord.TimeStamp:HH:mm:ss.ffff} | {logRecord.Message}";
+            Console.WriteLine(message);
         }
     }
 }
