@@ -46,6 +46,7 @@ namespace AsyncCaller.Distribution
                 FulcrumApplication.Context.LeverConfiguration = clientConfig;
 
                 // Distribute the request. RequestHandler will put back on queue if necessary, and also handle callbacks
+                log.LogInformation($"Distributing to {requestEnvelope.RawRequest.Title}");
                 var handler = new RequestHandler(HttpSender, clientTenant, FulcrumApplication.Context.LeverConfiguration, requestEnvelope);
                 await handler.ProcessOneRequestAsync();
             }

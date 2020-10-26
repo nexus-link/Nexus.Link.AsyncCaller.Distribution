@@ -24,6 +24,12 @@ namespace AsyncCaller.Distribution
             return ReleaseHistory.Releases;
         }
 
+        [FunctionName("Logging")]
+        public static void Logging([QueueTrigger("platform-integration-test-template-service-logging")] string item, ILogger log)
+        {
+            log.LogInformation(item);
+        }
+
         [FunctionName("AC-standard")]
         public static async Task Standard([QueueTrigger(RequestQueueHelper.DefaultQueueName, Connection = "AzureWebJobsStorage")] RawRequestEnvelope rawRequestEnvelope, ILogger log)
         {
