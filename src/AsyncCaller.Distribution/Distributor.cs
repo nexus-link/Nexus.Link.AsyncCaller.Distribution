@@ -33,6 +33,11 @@ namespace AsyncCaller.Distribution
         {
             try
             {
+                // Log invocation
+                var invocationLogMessage = $"{requestEnvelope}; prio: {requestEnvelope.RawRequest.Priority?.ToString() ?? "standard"}";
+                log.LogDebug(invocationLogMessage);
+                Log.LogVerbose(invocationLogMessage);
+
                 InternalContract.RequireNotNull(Startup.AsyncCallerServiceConfiguration, nameof(Startup.AsyncCallerServiceConfiguration),
                     $"Missing {nameof(Startup.AsyncCallerServiceConfiguration)}. Please check your Nexus configuration for this function app.");
 
