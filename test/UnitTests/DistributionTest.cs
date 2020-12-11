@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -32,7 +33,11 @@ namespace UnitTests
         #region Initilize
 
         private static ILogger _logger;
-        private static readonly Tenant Tenant = new Tenant("hoo", "ver");
+        private const string Organization = "hoo";
+        private const string Enviorment = "ver";
+        private const string Enviorment2 = "local-dev";
+        private static readonly Tenant Tenant = new Tenant(Organization, Enviorment);
+        private static readonly Tenant Tenant2 = new Tenant(Organization, Enviorment2);
         private static bool _runBackgroundJob;
 
         private Mock<IHttpClient> _httpSenderMock;
@@ -55,7 +60,7 @@ namespace UnitTests
 
             _asyncCallerConfigMock = new Mock<ILeverConfiguration>();
             _asyncCallerServiceConfigMock = new Mock<ILeverServiceConfiguration>();
-            _asyncCallerServiceConfigMock.Setup(x => x.GetConfigurationForAsync(Tenant)).ReturnsAsync(_asyncCallerConfigMock.Object);
+            _asyncCallerServiceConfigMock.Setup(x => x.GetConfigurationForAsync(It.IsAny<Tenant>())).ReturnsAsync(_asyncCallerConfigMock.Object);
 
             // By using RequestQueueHelper.MemoryQueueConnectionString, the SDK uses MemoryQueue.Instance(QueueName) as the queue
             _asyncCallerConfigMock.Setup(x => x.MandatoryValue<string>("ConnectionString")).Returns(RequestQueueHelper.MemoryQueueConnectionString);
@@ -63,7 +68,12 @@ namespace UnitTests
             _asyncCallerConfigMock.Setup(x => x.Value<int?>(nameof(AnonymousSchema.SchemaVersion))).Returns(1);
             _asyncCallerConfigMock.Setup(x => x.Value<double?>("DefaultDeadlineTimeSpanInSeconds")).Returns(60);
 
-            Startup.AsyncCallerServiceConfiguration = _asyncCallerServiceConfigMock.Object;
+            var serviceConfigs = new Dictionary<Tenant, ILeverServiceConfiguration>
+            {
+                [Tenant] = _asyncCallerServiceConfigMock.Object,
+                [Tenant2] = _asyncCallerServiceConfigMock.Object,
+            };
+            Startup.AsyncCallerServiceConfiguration = serviceConfigs;
 
             SimulateQueueTrigger(null);
             SimulateQueueTrigger(1);
@@ -124,7 +134,7 @@ namespace UnitTests
             });
         }
 
-        private static async Task<RawRequestEnvelope> CreateRequestEnvelopeAsync(HttpMethod callOutMethod, string body, string path, HttpMethod callBackMethod = null, int? priority = null)
+        private static async Task<RawRequestEnvelope> CreateRequestEnvelopeAsync(Tenant tenant, HttpMethod callOutMethod, string body, string path, HttpMethod callBackMethod = null, int? priority = null)
         {
             var url = $"https://example.org{path}";
             var request = new Request
@@ -141,8 +151,8 @@ namespace UnitTests
             }
             var envelope = new RequestEnvelopeMock
             {
-                Organization = Tenant.Organization,
-                Environment = Tenant.Environment,
+                Organization = tenant.Organization,
+                Environment = tenant.Environment,
                 CreatedAt = DateTimeOffset.Now,
                 DeadlineAt = DateTimeOffset.Now.Add(TimeSpan.FromSeconds(10)),
                 RawRequest = await request.ToRawAsync()
@@ -158,16 +168,20 @@ namespace UnitTests
 
         #endregion
 
-        [DataRow("GET", null)]
-        [DataRow("GET", 1)]
-        [DataRow("GET", 2)]
-        [DataRow("POST", null)]
-        [DataRow("POST", 1)]
-        [DataRow("PUT", null)]
-        [DataRow("PATCH", null)]
+        [DataRow("GET", Enviorment, null)]
+        [DataRow("GET", Enviorment, 1)]
+        [DataRow("GET", Enviorment, 2)]
+        [DataRow("GET", Enviorment2, null)]
+        [DataRow("GET", Enviorment2, 1)]
+        [DataRow("GET", Enviorment2, 2)]
+        [DataRow("POST", Enviorment, null)]
+        [DataRow("POST", Enviorment, 1)]
+        [DataRow("PUT", Enviorment, null)]
+        [DataRow("PATCH", Enviorment, null)]
         [TestMethod]
-        public async Task Distributor_Sends_Request(string method, int? priority)
+        public async Task Distributor_Sends_Request(string method, string enviorment, int? priority)
         {
+            var tenant = new Tenant(Organization, enviorment);
             const string expectedRequestBody = "{ 'foo': 'bar' }";
             string actualRequestBody = null;
             _httpSenderMock
@@ -176,7 +190,7 @@ namespace UnitTests
                 .ReturnsAsync(_okResponse)
                 .Verifiable();
 
-            var requestEnvelope = await CreateRequestEnvelopeAsync(new HttpMethod(method), expectedRequestBody, "/", null, priority);
+            var requestEnvelope = await CreateRequestEnvelopeAsync(tenant, new HttpMethod(method), expectedRequestBody, "/", null, priority);
             await Distributor.DistributeCall(requestEnvelope, _logger);
 
             _httpSenderMock.Verify(x => x.SendAsync(It.IsAny<HttpRequestMessage>(), It.IsAny<CancellationToken>()), Times.Once);
@@ -209,7 +223,7 @@ namespace UnitTests
                 .ReturnsAsync(_okResponse)
                 .Verifiable();
 
-            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, "/", HttpMethod.Post, priority);
+            var requestEnvelope = await CreateRequestEnvelopeAsync(Tenant, HttpMethod.Get, expectedRequestBody, "/", HttpMethod.Post, priority);
             await Distributor.DistributeCall(requestEnvelope, _logger);
 
             Assert.IsTrue(resetEvent.WaitOne(TimeSpan.FromSeconds(3)));
@@ -280,7 +294,7 @@ namespace UnitTests
                 });
 
             // Fake popping the queue with a AC request envelope
-            var requestEnvelope = await CreateRequestEnvelopeAsync(HttpMethod.Get, expectedRequestBody, path, null, priority);
+            var requestEnvelope = await CreateRequestEnvelopeAsync(Tenant, HttpMethod.Get, expectedRequestBody, path, null, priority);
             await Distributor.DistributeCall(requestEnvelope, _logger);
 
             Assert.IsTrue(firstCall.WaitOne(TimeSpan.FromSeconds(5)), "Expected a call to the Http Sender");

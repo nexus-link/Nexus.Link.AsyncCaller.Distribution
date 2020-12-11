@@ -7,6 +7,7 @@ using Nexus.Link.AsyncCaller.Sdk.Data.Models;
 using Nexus.Link.AsyncCaller.Sdk.Dispatcher.Logic;
 using Nexus.Link.Libraries.Core.Application;
 using Nexus.Link.Libraries.Core.Assert;
+using Nexus.Link.Libraries.Core.Error.Logic;
 using Nexus.Link.Libraries.Core.Logging;
 using Nexus.Link.Libraries.Core.MultiTenant.Model;
 using Nexus.Link.Libraries.Web.Pipe.Outbound;
@@ -47,7 +48,11 @@ namespace AsyncCaller.Distribution
                 FulcrumApplication.Context.ClientTenant = clientTenant;
 
                 // Setup the tenants AC configuration (cache and refresh is handled by LeverServiceConfiguration)
-                var clientConfig = await Startup.AsyncCallerServiceConfiguration.GetConfigurationForAsync(clientTenant);
+                if (!Startup.AsyncCallerServiceConfiguration.TryGetValue(clientTenant, out var serviceConfiguration))
+                {
+                    throw new FulcrumUnauthorizedException($"Unable to find credentials for fetching Nexus configuration for tenant {clientTenant}");
+                }
+                var clientConfig = await serviceConfiguration.GetConfigurationForAsync(clientTenant);
                 FulcrumApplication.Context.LeverConfiguration = clientConfig;
 
                 // Distribute the request. RequestHandler will put back on queue if necessary, and also handle callbacks

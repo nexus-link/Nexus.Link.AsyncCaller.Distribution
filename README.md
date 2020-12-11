@@ -31,6 +31,20 @@ The function app needs a few app settings to work:
 | Nexus:Authentication:ClientSecret | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
 | Nexus:RunTimeLevel                | RunTimeLevelEnum telling which type of environment the function app is in.<br />Defaults to "Production". |
 
+## Multi tenant support
+You can add support for running the function app for multiple tenants:
+```
+"Nexus:Authentication:ExtraTenants:0:Tenant:Organization" = "..."
+"Nexus:Authentication:ExtraTenants:0:Tenant:Environment" = "..."
+"Nexus:Authentication:ExtraTenants:0:ClientId" = "..."
+"Nexus:Authentication:ExtraTenants:0:ClientSecret" = "..."
+
+"Nexus:Authentication:ExtraTenants:1:Tenant:Organization" = "..."
+"Nexus:Authentication:ExtraTenants:1:Tenant:Environment" = "..."
+"Nexus:Authentication:ExtraTenants:1:ClientId" = "..."
+"Nexus:Authentication:ExtraTenants:1:ClientSecret" = "..."
+```
+
 ## Logging
 
 This code supports standard Nexus logging. It also uses the Azure Functions standard ILogger in it's own code (but this is not used in the AC SDK which it heavily depends on).

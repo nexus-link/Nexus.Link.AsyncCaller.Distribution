@@ -5,7 +5,17 @@
     "FundamentalsUrl": "http://example.org",
     "Authentication": {
       "ClientId": "foo",
-      "ClientSecret": "bar" 
+      "ClientSecret": "bar",
+      "ExtraTenants": [
+        {
+          "Tenant": {
+            "Organization": "hoo",
+            "Environment": "local-magnus"
+          },
+          "ClientId": "foo",
+          "ClientSecret": "bar"
+        }
+      ]
     }
-  } 
+  }
 }

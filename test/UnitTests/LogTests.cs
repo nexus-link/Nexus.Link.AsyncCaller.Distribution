@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,7 +42,11 @@ namespace UnitTests
             asyncCallerConfigMock.Setup(x => x.Value<int?>(nameof(AnonymousSchema.SchemaVersion))).Returns(1);
             asyncCallerConfigMock.Setup(x => x.Value<double?>("DefaultDeadlineTimeSpanInSeconds")).Returns(60);
 
-            Startup.AsyncCallerServiceConfiguration = asyncCallerServiceConfigMock.Object;
+            var serviceConfigs = new Dictionary<Tenant, ILeverServiceConfiguration>
+            {
+                [Tenant] = asyncCallerServiceConfigMock.Object,
+            };
+            Startup.AsyncCallerServiceConfiguration = serviceConfigs;
         }
 
         [TestMethod]

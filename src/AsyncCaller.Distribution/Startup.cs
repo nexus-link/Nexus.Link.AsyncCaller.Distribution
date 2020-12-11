@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Rest;
@@ -18,7 +19,7 @@ namespace AsyncCaller.Distribution
     public class Startup : FunctionsStartup
     {
         public static NexusSettings NexusSettings { get; } = new NexusSettings();
-        public static ILeverServiceConfiguration AsyncCallerServiceConfiguration { get; set; }
+        public static Dictionary<Tenant, ILeverServiceConfiguration> AsyncCallerServiceConfiguration { get; set; }
 
         public override void Configure(IFunctionsHostBuilder builder)
         {
@@ -36,7 +37,24 @@ namespace AsyncCaller.Distribution
             var logger = new FulcrumLogger(logClient, loggingConfiguration);
             FulcrumApplication.Setup.SynchronousFastLogger = logger;
 
-            AsyncCallerServiceConfiguration = new LeverServiceConfiguration(NexusSettings.ServiceTenant, "AsyncCaller", NexusSettings.FundamentalsUrl, nexusServiceCredentials, NexusSettings.FundamentalsUrl);
+            AsyncCallerServiceConfiguration = new Dictionary<Tenant, ILeverServiceConfiguration>
+            {
+                // Add service tenant
+                [NexusSettings.ServiceTenant] = new LeverServiceConfiguration(
+                    NexusSettings.ServiceTenant, "AsyncCaller", NexusSettings.FundamentalsUrl, nexusServiceCredentials,
+                    NexusSettings.FundamentalsUrl)
+            };
+            // Check for additional tenant credentials
+            if (NexusSettings.Authentication.ExtraCredentials != null)
+            {
+                foreach (var tenantCredentials in NexusSettings.Authentication.ExtraCredentials)
+                {
+                    var serviceCredentials = new AuthenticationCredentials { ClientId = tenantCredentials.ClientId, ClientSecret = tenantCredentials.ClientSecret };
+                    AsyncCallerServiceConfiguration[tenantCredentials.Tenant] = new LeverServiceConfiguration(
+                        tenantCredentials.Tenant, "AsyncCaller", NexusSettings.FundamentalsUrl, serviceCredentials,
+                        NexusSettings.FundamentalsUrl);
+                }
+            }
         }
     }
 
@@ -52,6 +70,14 @@ namespace AsyncCaller.Distribution
 
     public class Authentication
     {
+        public string ClientId { get; set; }
+        public string ClientSecret { get; set; }
+        public List<TenantCredentials> ExtraCredentials { get; set; }
+    }
+
+    public class TenantCredentials
+    {
+        public Tenant Tenant { get; set; }
         public string ClientId { get; set; }
         public string ClientSecret { get; set; }
     }
