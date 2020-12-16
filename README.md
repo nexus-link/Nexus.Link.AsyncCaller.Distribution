@@ -24,27 +24,32 @@ The function app needs a few app settings to work:
 | Name                              | Value                                                        |
 | --------------------------------- | ------------------------------------------------------------ |
 | AzureWebJobsStorage               | Connection string to an Azure Storage account                |
-| Nexus:Organization                | Organization part of the tenant that this function app is running in |
-| Nexus:Environment                 | Environment part of the tenant that this function app is running in |
-| Nexus:FundamentalsUrl             | Usually "https://fundamentals-svc.nexus.link" for production and "https://prdsim-fulcrum-fundamentals.azurewebsites.net" for non-production |
-| Nexus:Authentication:ClientId     | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
-| Nexus:Authentication:ClientSecret | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
-| Nexus:RunTimeLevel                | RunTimeLevelEnum telling which type of environment the function app is in.<br />Defaults to "Production". |
+| Nexus__Organization                | Organization part of the tenant that this function app is running in |
+| Nexus__Environment                 | Environment part of the tenant that this function app is running in |
+| Nexus__FundamentalsUrl             | Usually "https://fundamentals-svc.nexus.link" for production and "https://prdsim-fulcrum-fundamentals.azurewebsites.net" for non-production |
+| Nexus__Authentication__ClientId     | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
+| Nexus__Authentication__ClientSecret | Authentication for fetching Async Caller and Logging configuration from Nexus Fundamentals |
+| Nexus__RunTimeLevel                | RunTimeLevelEnum telling which type of environment the function app is in.<br />Defaults to "Production" |
 
 ## Multi tenant support
-You can add support for running the function app for multiple tenants:
+You can add support for running the function app for multiple tenants by overriding the Nexus__Authentication__ExtraTenants array when deploying the function app.
 ```
-"Nexus:Authentication:ExtraTenants:0:Tenant:Organization" = "..."
-"Nexus:Authentication:ExtraTenants:0:Tenant:Environment" = "..."
-"Nexus:Authentication:ExtraTenants:0:ClientId" = "..."
-"Nexus:Authentication:ExtraTenants:0:ClientSecret" = "..."
+Nexus__Authentication__ExtraTenants__0__Tenant__Organization = "..."
+Nexus__Authentication__ExtraTenants__0__Tenant__Environment = "..."
+Nexus__Authentication__ExtraTenants__0__ClientId = "..."
+Nexus__Authentication__ExtraTenants__0__ClientSecret = "..."
 
-"Nexus:Authentication:ExtraTenants:1:Tenant:Organization" = "..."
-"Nexus:Authentication:ExtraTenants:1:Tenant:Environment" = "..."
-"Nexus:Authentication:ExtraTenants:1:ClientId" = "..."
-"Nexus:Authentication:ExtraTenants:1:ClientSecret" = "..."
+Nexus__Authentication__ExtraTenants__1__Tenant__Organization = "..."
+Nexus__Authentication__ExtraTenants__1__Tenant__Environment = "..."
+Nexus__Authentication__ExtraTenants__1__ClientId = "..."
+Nexus__Authentication__ExtraTenants__1__ClientSecret = "..."
 ```
 
 ## Logging
 
 This code supports standard Nexus logging. It also uses the Azure Functions standard ILogger in it's own code (but this is not used in the AC SDK which it heavily depends on).
+
+To enable function app logging at trace level, add app setting
+```
+AzureFunctionsJobHost:logging:LogLevel:Function = Trace
+```
