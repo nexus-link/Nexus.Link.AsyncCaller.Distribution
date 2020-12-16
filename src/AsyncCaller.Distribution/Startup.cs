@@ -49,9 +49,9 @@ namespace AsyncCaller.Distribution
             Log.LogInformation($"[Startup] CONFIGURATION for service tenant {NexusSettings.ServiceTenant}: {nexusServiceCredentials.ClientId} @ {NexusSettings.FundamentalsUrl}");
 
             // Check for additional tenant credentials
-            if (NexusSettings.Authentication.ExtraCredentials != null)
+            if (NexusSettings.Authentication.ExtraTenants != null)
             {
-                foreach (var tenantCredentials in NexusSettings.Authentication.ExtraCredentials)
+                foreach (var tenantCredentials in NexusSettings.Authentication.ExtraTenants)
                 {
                     var serviceCredentials = new AuthenticationCredentials { ClientId = tenantCredentials.ClientId, ClientSecret = tenantCredentials.ClientSecret };
                     AsyncCallerServiceConfiguration[tenantCredentials.Tenant] = new LeverServiceConfiguration(
@@ -77,7 +77,7 @@ namespace AsyncCaller.Distribution
     {
         public string ClientId { get; set; }
         public string ClientSecret { get; set; }
-        public List<TenantCredentials> ExtraCredentials { get; set; }
+        public List<TenantCredentials> ExtraTenants { get; set; }
     }
 
     public class TenantCredentials

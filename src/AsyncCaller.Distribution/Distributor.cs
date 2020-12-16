@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -61,7 +62,8 @@ namespace AsyncCaller.Distribution
             }
             catch (Exception e)
             {
-                const string errorMessage = "Failed to distribute request. (Code location 5ADA0B3E-2344-4977-922B-F7BB870EA065)";
+                var errorMessage = "Failed to distribute request. (Code location 5ADA0B3E-2344-4977-922B-F7BB870EA065)" +
+                                   $" | Loaded configurations: {string.Join(", ", Startup.AsyncCallerServiceConfiguration.Keys)}";
                 log.LogError(e, errorMessage);
                 Log.LogError(errorMessage, e);
                 throw;
