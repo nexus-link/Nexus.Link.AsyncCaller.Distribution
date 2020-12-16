@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Rest;
 using Nexus.Link.Configurations.Sdk;
 using Nexus.Link.Libraries.Core.Application;
+using Nexus.Link.Libraries.Core.Logging;
 using Nexus.Link.Libraries.Core.MultiTenant.Model;
 using Nexus.Link.Libraries.Core.Platform.Authentication;
 using Nexus.Link.Libraries.Core.Platform.Configurations;
@@ -45,6 +46,8 @@ namespace AsyncCaller.Distribution
                     NexusSettings.ServiceTenant, "AsyncCaller", NexusSettings.FundamentalsUrl, nexusServiceCredentials,
                     NexusSettings.FundamentalsUrl)
             };
+            Log.LogInformation($"[Startup] CONFIGURATION for service tenant {NexusSettings.ServiceTenant}: {nexusServiceCredentials.ClientId} @ {NexusSettings.FundamentalsUrl}");
+
             // Check for additional tenant credentials
             if (NexusSettings.Authentication.ExtraCredentials != null)
             {
@@ -54,6 +57,7 @@ namespace AsyncCaller.Distribution
                     AsyncCallerServiceConfiguration[tenantCredentials.Tenant] = new LeverServiceConfiguration(
                         tenantCredentials.Tenant, "AsyncCaller", NexusSettings.FundamentalsUrl, serviceCredentials,
                         NexusSettings.FundamentalsUrl);
+                    Log.LogInformation($"[Startup] CONFIGURATION for extra tenant {tenantCredentials.Tenant}: {tenantCredentials.ClientId} @ {NexusSettings.FundamentalsUrl}");
                 }
             }
         }
