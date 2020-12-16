@@ -8,10 +8,8 @@
       "ClientSecret": "bar",
       "ExtraTenants": [
         {
-          "Tenant": {
-            "Organization": "hoo",
-            "Environment": "local-magnus"
-          },
+          "Organization": "hoo",
+          "Environment": "local-magnus",
           "ClientId": "foo",
           "ClientSecret": "bar"
         }

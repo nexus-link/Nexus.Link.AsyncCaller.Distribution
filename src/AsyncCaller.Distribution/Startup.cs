@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
@@ -53,11 +54,19 @@ namespace AsyncCaller.Distribution
             {
                 foreach (var tenantCredentials in NexusSettings.Authentication.ExtraTenants)
                 {
-                    var serviceCredentials = new AuthenticationCredentials { ClientId = tenantCredentials.ClientId, ClientSecret = tenantCredentials.ClientSecret };
-                    AsyncCallerServiceConfiguration[tenantCredentials.Tenant] = new LeverServiceConfiguration(
-                        tenantCredentials.Tenant, "AsyncCaller", NexusSettings.FundamentalsUrl, serviceCredentials,
-                        NexusSettings.FundamentalsUrl);
-                    Log.LogInformation($"[Startup] CONFIGURATION for extra tenant {tenantCredentials.Tenant}: {tenantCredentials.ClientId} @ {NexusSettings.FundamentalsUrl}");
+                    try
+                    {
+                        var serviceCredentials = new AuthenticationCredentials { ClientId = tenantCredentials.ClientId, ClientSecret = tenantCredentials.ClientSecret };
+                        AsyncCallerServiceConfiguration[tenantCredentials.Tenant] = new LeverServiceConfiguration(
+                            tenantCredentials.Tenant, "AsyncCaller", NexusSettings.FundamentalsUrl, serviceCredentials,
+                            NexusSettings.FundamentalsUrl);
+                        Log.LogInformation($"[Startup] CONFIGURATION for extra tenant {tenantCredentials.Tenant}: {tenantCredentials.ClientId} @ {NexusSettings.FundamentalsUrl}");
+
+                    }
+                    catch (Exception e)
+                    {
+                        Log.LogError($"Error setting up configuration for {tenantCredentials.Tenant}: {e.Message}", e);
+                    }
                 }
             }
         }
@@ -82,7 +91,10 @@ namespace AsyncCaller.Distribution
 
     public class TenantCredentials
     {
-        public Tenant Tenant { get; set; }
+        public string Organization { get; set; }
+        public string Environment { get; set; }
+        public Tenant Tenant => new Tenant(Organization, Environment);
+
         public string ClientId { get; set; }
         public string ClientSecret { get; set; }
     }

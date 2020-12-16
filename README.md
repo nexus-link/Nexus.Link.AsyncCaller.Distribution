@@ -34,13 +34,13 @@ The function app needs a few app settings to work:
 ## Multi tenant support
 You can add support for running the function app for multiple tenants by overriding the Nexus__Authentication__ExtraTenants array when deploying the function app.
 ```
-Nexus__Authentication__ExtraTenants__0__Tenant__Organization = "..."
-Nexus__Authentication__ExtraTenants__0__Tenant__Environment = "..."
+Nexus__Authentication__ExtraTenants__0__Organization = "..."
+Nexus__Authentication__ExtraTenants__0__Environment = "..."
 Nexus__Authentication__ExtraTenants__0__ClientId = "..."
 Nexus__Authentication__ExtraTenants__0__ClientSecret = "..."
 
-Nexus__Authentication__ExtraTenants__1__Tenant__Organization = "..."
-Nexus__Authentication__ExtraTenants__1__Tenant__Environment = "..."
+Nexus__Authentication__ExtraTenants__1__Organization = "..."
+Nexus__Authentication__ExtraTenants__1__Environment = "..."
 Nexus__Authentication__ExtraTenants__1__ClientId = "..."
 Nexus__Authentication__ExtraTenants__1__ClientSecret = "..."
 ```
