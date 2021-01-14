@@ -7,6 +7,13 @@ namespace AsyncCaller.Distribution
     {
         public static List<Release> Releases { get; } = new List<Release>
         {
+            new Release("1.1.1")
+            {
+                Notes = new List<Note>
+                {
+                    Note.Fix("120 s timeout on HttpClient")
+                }
+            },
             new Release("1.1.0")
             {
                 Notes = new List<Note>

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -28,6 +27,7 @@ namespace AsyncCaller.Distribution
             };
 
             var httpClient = HttpClientFactory.Create(handlers.ToArray());
+            httpClient.Timeout = TimeSpan.FromSeconds(120); // Must be longer than AC timeout, which is 100 s
             HttpSender = new HttpClientWrapper(httpClient);
         }
 
