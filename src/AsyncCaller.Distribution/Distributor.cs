@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Nexus.Link.AsyncCaller.Sdk.Data.Models;
@@ -35,7 +37,10 @@ namespace AsyncCaller.Distribution
         {
             try
             {
-                // Log invocation
+                // Setup correlation id
+                MaybeSetupCorrelationId(requestEnvelope, log);
+
+                // Log this invocation
                 var invocationLogMessage = $"{requestEnvelope}; prio: {requestEnvelope.RawRequest.Priority?.ToString() ?? "standard"}";
                 log.LogDebug(invocationLogMessage);
                 Log.LogVerbose(invocationLogMessage);
@@ -67,6 +72,29 @@ namespace AsyncCaller.Distribution
                 log.LogError(e, errorMessage);
                 Log.LogError(errorMessage, e);
                 throw;
+            }
+        }
+
+        private static readonly Regex CorrelationIdRegex = new Regex(@"X-Correlation-ID: ([^\s]+)", RegexOptions.IgnoreCase);
+
+        private static void MaybeSetupCorrelationId(RawRequestEnvelope requestEnvelope, ILogger log)
+        {
+            if (!string.IsNullOrWhiteSpace(FulcrumApplication.Context.CorrelationId)) return;
+
+            try
+            {
+                var callOut = Encoding.UTF8.GetString(requestEnvelope.RawRequest.CallOut);
+                var correlationIdMatch = CorrelationIdRegex.Match(callOut);
+                if (correlationIdMatch.Success)
+                {
+                    FulcrumApplication.Context.CorrelationId = correlationIdMatch.Groups[1].Value;
+                }
+            }
+            catch (Exception e)
+            {
+                const string message = "Error when finding correlation id";
+                log.LogWarning(message, e);
+                Log.LogWarning(message, e);
             }
         }
     }

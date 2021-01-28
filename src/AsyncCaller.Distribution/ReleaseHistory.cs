@@ -7,6 +7,13 @@ namespace AsyncCaller.Distribution
     {
         public static List<Release> Releases { get; } = new List<Release>
         {
+            new Release("1.1.2")
+            {
+                Notes = new List<Note>
+                {
+                    Note.Fix("Setup Correlation Id for logging")
+                }
+            },
             new Release("1.1.1")
             {
                 Notes = new List<Note>

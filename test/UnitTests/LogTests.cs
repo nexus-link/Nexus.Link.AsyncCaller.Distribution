@@ -67,18 +67,22 @@ namespace UnitTests
                     Console.WriteLine(record.Message);
                     if (record.SeverityLevel == LogSeverityLevel.Verbose &&
                         record.Message.Contains(origionalId) &&
-                        record.Message.Contains(url))
+                        record.Message.Contains(url) &&
+                        record.ToLogString().Contains("corr-id"))
                     {
                         testDone.Set();
                     }
                 });
+
+            var callOut = new HttpRequestMessage(HttpMethod.Get, url);
+            callOut.Headers.Add("X-Correlation-ID", "corr-id");
 
             var requestEnvelope = new RawRequestEnvelope
             {
                 Organization = Tenant.Organization,
                 Environment = Tenant.Environment,
                 OriginalRequestId = origionalId,
-                RawRequest = await new Request { CallOut = new HttpRequestMessage(HttpMethod.Get, url) }.ToRawAsync()
+                RawRequest = await new Request { CallOut = callOut }.ToRawAsync()
 
             };
             await Distributor.DistributeCall(requestEnvelope, logger);
