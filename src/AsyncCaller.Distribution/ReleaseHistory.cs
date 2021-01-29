@@ -7,6 +7,13 @@ namespace AsyncCaller.Distribution
     {
         public static List<Release> Releases { get; } = new List<Release>
         {
+            new Release("1.1.4")
+            {
+                Notes = new List<Note>
+                {
+                    Note.Fix("Bugfix for compensation for bug in dotnet core regarding header Expires: -1")
+                }
+            },
             new Release("1.1.3")
             {
                 Notes = new List<Note>
