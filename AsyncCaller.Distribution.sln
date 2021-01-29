@@ -5,7 +5,7 @@ VisualStudioVersion = 16.0.30309.148
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "AsyncCaller.Distribution", "src\AsyncCaller.Distribution\AsyncCaller.Distribution.csproj", "{7378B240-699D-4289-B463-3B4CCEBC12B8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "test\UnitTests\UnitTests.csproj", "{8FD4F20F-2B3D-4395-AA1C-7A74DCAD78A8}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnitTests", "test\UnitTests\UnitTests.csproj", "{8FD4F20F-2B3D-4395-AA1C-7A74DCAD78A8}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{DCBF6720-45EA-4CC8-AA00-A36CBAC6721F}"
 	ProjectSection(SolutionItems) = preProject

@@ -7,6 +7,13 @@ namespace AsyncCaller.Distribution
     {
         public static List<Release> Releases { get; } = new List<Release>
         {
+            new Release("1.1.3")
+            {
+                Notes = new List<Note>
+                {
+                    Note.Fix("Compensate for bug in dotnet core regarding commas in Server header not allowed")
+                }
+            },
             new Release("1.1.2")
             {
                 Notes = new List<Note>
