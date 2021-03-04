@@ -7,6 +7,13 @@ namespace AsyncCaller.Distribution
     {
         public static List<Release> Releases { get; } = new List<Release>
         {
+            new Release("1.1.5")
+            {
+                Notes = new List<Note>
+                {
+                    Note.Fix("Fix for Content-Type in Callback request (it's always application/json, not the content-type from the server response)")
+                }
+            },
             new Release("1.1.4")
             {
                 Notes = new List<Note>
