@@ -248,8 +248,10 @@ namespace UnitTests
         /// When a message is put back on queue, there is a hard coded 1 second delay,
         /// which means that test runs with "shouldBeRetried" true will take at least one second.
         /// </remarks>
-        [DataRow((HttpStatusCode)425, true, null)]
-        [DataRow((HttpStatusCode)429, true, null)]
+        [DataRow((HttpStatusCode)425, true, null)] // Too Early
+        [DataRow(HttpStatusCode.Locked, true, 1)]
+        [DataRow(HttpStatusCode.TooManyRequests, true, 2)]
+        [DataRow(HttpStatusCode.TooManyRequests, true, null)]
         [DataRow(HttpStatusCode.BadGateway, true, null)]
         [DataRow(HttpStatusCode.BadGateway, true, 1)]
         [DataRow(HttpStatusCode.BadRequest, false, null)]
@@ -260,7 +262,8 @@ namespace UnitTests
         [DataRow(HttpStatusCode.NotFound, true, 1)]
         [DataRow(HttpStatusCode.NotFound, true, 2)]
         [DataRow(HttpStatusCode.RequestTimeout, true, null)]
-        [DataRow(HttpStatusCode.TooManyRequests, false, null)]
+        [DataRow(HttpStatusCode.AlreadyReported, false, null)]
+        
         [TestMethod]
         public async Task Distributor_Handles_Retries(HttpStatusCode failCode, bool shouldBeRetried, int? priority)
         {
@@ -292,12 +295,13 @@ namespace UnitTests
                     failedResponseReturned = true;
                     return response;
                 });
-
+            
             // Fake popping the queue with a AC request envelope
             var requestEnvelope = await CreateRequestEnvelopeAsync(Tenant, HttpMethod.Get, expectedRequestBody, path, null, priority);
             await Distributor.DistributeCall(requestEnvelope, _logger);
 
             Assert.IsTrue(firstCall.WaitOne(TimeSpan.FromSeconds(5)), "Expected a call to the Http Sender");
+
 
             if (shouldBeRetried)
             {
@@ -306,6 +310,7 @@ namespace UnitTests
             }
             else
             {
+                await Task.Delay(100);
                 Assert.AreEqual(1, count, "The http sender should have been call once");
             }
 
