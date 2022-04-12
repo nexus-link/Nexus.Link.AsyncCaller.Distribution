@@ -7,9 +7,9 @@
     <PackageReference Include="Microsoft.Azure.Functions.Extensions" Version="1.0.0" />
     <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Storage" Version="3.0.10" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="3.0.3" />
-    <PackageReference Include="Nexus.Link.AsyncCaller.Sdk" Version="3.1.0-alpha-01" />
-    <PackageReference Include="Nexus.Link.Libraries.Web.AspNet" Version="3.0.2" />
-    <PackageReference Include="Nexus.Link.Logger.Sdk" Version="3.0.9" />
+    <PackageReference Include="Nexus.Link.AsyncCaller.Sdk" Version="3.1.0" />
+    <PackageReference Include="Nexus.Link.Libraries.Web.AspNet" Version="3.2.1" />
+    <PackageReference Include="Nexus.Link.Logger.Sdk" Version="3.0.10" />
   </ItemGroup>
   <ItemGroup>
     <None Update="host.json">
