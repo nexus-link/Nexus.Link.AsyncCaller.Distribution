@@ -35,7 +35,7 @@ namespace UnitTests
 
             var asyncCallerConfigMock = new Mock<ILeverConfiguration>();
             var asyncCallerServiceConfigMock = new Mock<ILeverServiceConfiguration>();
-            asyncCallerServiceConfigMock.Setup(x => x.GetConfigurationForAsync(Tenant)).ReturnsAsync(asyncCallerConfigMock.Object);
+            asyncCallerServiceConfigMock.Setup(x => x.GetConfigurationForAsync(Tenant, new CancellationToken())).ReturnsAsync(asyncCallerConfigMock.Object);
 
             // By using RequestQueueHelper.MemoryQueueConnectionString, the SDK uses MemoryQueue.Instance(QueueName) as the queue
             asyncCallerConfigMock.Setup(x => x.MandatoryValue<string>("ConnectionString")).Returns(RequestQueueHelper.MemoryQueueConnectionString);
